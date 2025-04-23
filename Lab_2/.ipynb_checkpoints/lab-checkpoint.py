@@ -1,7 +1,7 @@
 """
-Created on Sep 26 2023
-Last edited on January 28 2025
-@author: Hubert Kanyamahanga, M.Sc.
+Created on Sep 26 2018
+Last edited on May 28 2024
+@author: Dennis Wittich M.Sc. & Hubert Kanyamahanga, M.Sc.
 """
 import os
 import numpy as np
