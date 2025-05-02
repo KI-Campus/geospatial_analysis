@@ -255,6 +255,7 @@ class GaussianMixtureClassifier():
             self.num_clusters = [self.num_clusters] * self.num_classes
 
         self.gmms = []
+        print(self.num_classes)
         for c in range(self.num_classes):
             self.gmms.append(GaussianMixture(n_components=self.num_clusters[c]))
             self.gmms[c].fit(feature_vectors_by_classes[c])
