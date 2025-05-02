@@ -13,6 +13,9 @@ from torch.utils.data import Dataset
 from torchvision.io import read_image
 from os.path import join as pjoin
 from functools import partial
+import requests
+import zipfile
+import shutil
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -92,7 +95,7 @@ class UaVidDataset(Dataset):
     """
     def __init__(self, subset, tf = None):
         assert subset in ['train', 'val', 'test'], "Invalid subset"
-        self.df = pd.read_pickle(f'./uavid_pkl/{subset}_df.pkl')
+        self.df = pd.read_pickle(f'./DATA/uavid_pkl/{subset}_df.pkl')
         self.tf = tf
 
     def __len__(self):
@@ -101,8 +104,8 @@ class UaVidDataset(Dataset):
     def __getitem__(self, idx):
         img_path = self.df.iloc[idx, 3]
         ref_path = self.df.iloc[idx, 2]
-        image = (read_image(img_path) / 255.0)
-        idmap = read_image(ref_path).long()
+        image = read_image("/".join(["./Data", img_path])) / 255.0
+        idmap = read_image("/".join(["./Data", ref_path])).long()
         sample = {'image':image, 'idmap':idmap}
         if self.tf:
             sample = self.tf(sample)
@@ -118,7 +121,7 @@ class UaVidDataset_PL(Dataset):
     """
     def __init__(self, subset, num_smpl = 50):
         assert subset in ['train', 'val', 'test'], "Invalid subset"
-        self.df = pd.read_pickle(f'./uavid_pkl/{subset}_df.pkl')
+        self.df = pd.read_pickle(f'./DATA/uavid_pkl/{subset}_df.pkl')
         self.num_smpl = num_smpl
         
         self.images = []
@@ -303,8 +306,16 @@ def print_summary(Ls, TBAs, VAs, CM):
 
     import os
 
-# this function creates "checkpoints" folder it does not exist in the current home directory!
+# this function creates "data" folder it does not exist in the current home directory!
+def create_data_folder():
+    folder_name = "DATA"
+    if not os.path.exists(folder_name):
+        os.makedirs(folder_name)
+        print(f"Folder '{folder_name}' created.")
+    else:
+        print(f"Folder '{folder_name}' already exists.")
 
+# this function creates "checkpoints" folder it does not exist in the current home directory!
 def create_checkpoints_folder():
     folder_name = "checkpoints"
     if not os.path.exists(folder_name):
@@ -312,6 +323,66 @@ def create_checkpoints_folder():
         print(f"Folder '{folder_name}' created.")
     else:
         print(f"Folder '{folder_name}' already exists.")
+        
+def download_data_from_seafile(url, local_filename):
+    # url: The link to the file that needs to be downloaded.
+    # local_filename: The name of the file where the downloaded content will be saved locally
+    with requests.get(url, stream=True) as r:
+        r.raise_for_status()
+        with open(local_filename, 'wb') as f:
+            for chunk in r.iter_content(chunk_size=8192):
+                f.write(chunk)
+    print(f"Downloaded {local_filename}")
 
-# Example usage:
-# create_checkpoints_folder()
+def unzip_file(zip_filepath, output_dir):
+    """
+    Unzips a file to the specified directory, raising an error if there's a problem.
+
+    Args:
+        zip_filepath (str): Path to the ZIP file.
+        output_dir (str): Directory to extract the files into.
+
+    Raises:
+        FileNotFoundError: If the ZIP file does not exist.
+        zipfile.BadZipFile: If the file is not a valid ZIP file.
+        Exception: For other errors during extraction.
+    """
+    if not os.path.exists(zip_filepath):
+        raise FileNotFoundError(f"The file {zip_filepath} does not exist.")
+    try:
+        with zipfile.ZipFile(zip_filepath, 'r') as zip_ref:
+            zip_ref.extractall(output_dir)
+            # Move files to current directory
+            for item in os.listdir("./DATA/UAVID_DATA/"):
+                shutil.move(os.path.join("./DATA/UAVID_DATA/", item), "./DATA")
+            zip_ref.close()
+        # Clean up
+        shutil.rmtree("./DATA/UAVID_DATA/")
+        os.remove(zip_filepath)
+        print(f"Successfully extracted {zip_filepath} to {output_dir}")
+    except zipfile.BadZipFile:
+        raise zipfile.BadZipFile(f"The file {zip_filepath} is not a valid ZIP file.")
+    except Exception as e:
+        raise Exception(f"An error occurred while extracting {zip_filepath}: {e}")
+
+        
+def download_checkpoints_from_seafile(url, ckpt_folder):
+    """
+    Downloads a file from the given URL and saves it to the specified location.
+
+    Args:
+        url (str): The URL of the file to download.
+        save_path (str): The local path where the file will be saved.
+
+    Raises:
+        Exception: If the download fails.
+    """
+    try:
+        with requests.get(url, stream=True) as response:
+            response.raise_for_status()  # Raise an error for bad responses (4xx or 5xx)
+            with open(ckpt_folder, 'wb') as file:
+                for chunk in response.iter_content(chunk_size=8192):
+                    file.write(chunk)
+        print(f"File successfully downloaded and saved to {ckpt_folder}")
+    except Exception as e:
+        print(f"An error occurred: {e}")
